@@ -96,7 +96,8 @@ h2 { font-size: 0.95rem; font-weight: 600; margin: 0 0 0.5rem; padding: 0 0.5rem
 }
 
 .cell { position: relative; aspect-ratio: 1; background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.cell.block { background: var(--block); cursor: default; }
+.cell.block { background: var(--surface); cursor: default; }
+.cell.block::before { content: ""; position: absolute; inset: -1px; background: var(--block); animation: block-in 0.4s ease-out backwards; animation-delay: var(--d, 0ms); }
 .cell.ref { background: color-mix(in srgb, var(--surface), var(--accent) 8%); }
 .cell.in-word { background: color-mix(in srgb, var(--surface), var(--accent) 16%); }
 .cell.active { background: color-mix(in srgb, var(--surface), var(--accent) 50%); }
@@ -155,4 +156,30 @@ li.active { background: var(--active); }
   main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); gap: 0.75rem; }
   li { font-size: 0.82rem; padding: 0.25rem 0.4rem; }
   li b { flex-basis: 1.2rem; }
+}
+
+button, li, .cell { transition: color 0.15s, background 0.15s; }
+
+#theme svg { display: block; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+#theme .core { r: 5px; transition: r 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+#theme .cut { r: 7px; cx: 30px; cy: -6px; transition: cx 0.5s cubic-bezier(0.4, 0, 0.2, 1), cy 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+#theme .rays { transform-origin: 12px 12px; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s; }
+:root[data-theme="light"] #theme svg { transform: rotate(-35deg); }
+:root[data-theme="light"] #theme .core { r: 9px; }
+:root[data-theme="light"] #theme .cut { cx: 18px; cy: 6px; }
+:root[data-theme="light"] #theme .rays { transform: rotate(50deg) scale(0.3); opacity: 0; }
+
+.letter.pop { animation: pop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.cell.wrong::after { animation: fade-in 0.3s ease-out; }
+
+@keyframes block-in { from { opacity: 0; } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes pop {
+  0% { opacity: 0; transform: scale(0.4); }
+  60% { opacity: 1; transform: scale(1.18); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }
 }

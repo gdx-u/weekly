@@ -32,6 +32,8 @@ let letter_els = [];
 let clue_els = { across: [], down: [] };
 let clue_of = [];
 
+const is_solved = () => puzzle.cells.every((c, i) => c === null || entries[i] === c);
+
 const progress_key = () => `xw_progress_${name}`;
 const clue_at = (i, dir) => puzzle[dir][clue_of[i][dir]];
 const current_clue = () => clue_at(cursor, direction);
@@ -40,7 +42,6 @@ const fillable = () => puzzle.cells.flatMap((c, i) => (c === null ? [] : [i]));
 
 function set_theme(theme) {
   document.documentElement.dataset.theme = theme;
-  $("theme").textContent = theme === "dark" ? "☀" : "☾";
   save("xw_theme", theme);
 }
 
@@ -76,9 +77,12 @@ function build_tools() {
     Object.keys(scopes).forEach((scope) => {
       const button = make("button", "tool", title_case(scope));
       button.onclick = () => {
-        actions[action](scopes[scope]());
+        const cells = scopes[scope]();
+        const changed = action === "reveal" ? cells.filter((i) => entries[i] !== puzzle.cells[i]) : [];
+        actions[action](cells);
         save(progress_key(), entries);
         render();
+        pop(changed, { letter: 0, word: 45, grid: 10 }[scope]);
       };
       group.append(button);
     });
@@ -104,6 +108,12 @@ function build_tools() {
   tools.append(auto, clear);
 }
 
+function block_delay(i) {
+  const dx = (i % puzzle.width) - (puzzle.width - 1) / 2;
+  const dy = Math.floor(i / puzzle.width) - (puzzle.height - 1) / 2;
+  return Math.round(Math.hypot(dx, dy) * 45);
+}
+
 function build_puzzle() {
   const grid = $("grid");
   grid.innerHTML = "";
@@ -113,6 +123,7 @@ function build_puzzle() {
 
   cell_els = puzzle.cells.map((solution, i) => {
     const cell = make("div", solution === null ? "cell block" : "cell");
+    if (solution === null) cell.style.setProperty("--d", `${block_delay(i)}ms`);
     if (solution !== null) {
       if (puzzle.numbers[i]) cell.append(make("span", "num", puzzle.numbers[i]));
       cell.append(make("span", "letter"));
@@ -122,6 +133,7 @@ function build_puzzle() {
     return cell;
   });
   letter_els = cell_els.map((cell) => cell.querySelector(".letter"));
+  letter_els.forEach((node) => node?.addEventListener("animationend", () => node.classList.remove("pop")));
 
   ["across", "down"].forEach((dir) => {
     const list = $(dir);
@@ -137,6 +149,16 @@ function build_puzzle() {
   });
   link_refs();
   fit_grid();
+}
+
+function pop(indices, step = 0) {
+  indices.forEach((i, n) => {
+    const node = letter_els[i];
+    node.classList.remove("pop");
+    void node.offsetWidth;
+    node.style.animationDelay = `${n * step}ms`;
+    node.classList.add("pop");
+  });
 }
 
 function link_refs() {
@@ -189,7 +211,7 @@ function render() {
   );
   const clue = current_clue();
   $("current-clue").textContent = `${clue.number}${direction === "across" ? "a" : "d"}  ${clue.text}`;
-  const solved = fillable().every((i) => entries[i] === puzzle.cells[i]);
+  const solved = is_solved();
   $("title").textContent = puzzle.title || name;
   $("title").classList.toggle("solved", solved);
   $("status").textContent = solved ? "Solved." : "";
@@ -291,6 +313,7 @@ function on_input() {
   type_letter(letter);
   save(progress_key(), entries);
   render();
+  if (is_solved()) pop(fillable(), 14);
 }
 
 async function open_puzzle(key) {
