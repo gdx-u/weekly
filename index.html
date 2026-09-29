@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crosswords</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header>
+  <nav id="tabs"></nav>
+  <button id="theme" aria-label="Switch theme"></button>
+</header>
+<main>
+  <section id="play">
+    <h1 id="title"></h1>
+    <p id="current-clue"></p>
+    <div id="grid"></div>
+    <div id="tools"></div>
+    <p id="status"></p>
+  </section>
+  <section id="clues">
+    <div><h2>Across</h2><ol id="across"></ol></div>
+    <div><h2>Down</h2><ol id="down"></ol></div>
+  </section>
+</main>
+<input id="keys" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Type letters">
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
