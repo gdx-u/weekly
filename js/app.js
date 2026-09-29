@@ -18,6 +18,8 @@ function make(tag, class_name, text) {
   return node;
 }
 
+const title_case = (text) => text[0].toUpperCase() + text.slice(1);
+
 let name = null;
 let puzzle = null;
 let entries = [];
@@ -46,7 +48,7 @@ function build_tabs() {
   const tabs = $("tabs");
   tabs.innerHTML = "";
   Object.keys(puzzles).forEach((key) => {
-    const button = make("button", key === name ? "tab active" : "tab", key);
+    const button = make("button", key === name ? "tab active" : "tab", puzzles[key].label);
     button.onclick = () => open_puzzle(key);
     tabs.append(button);
   });
@@ -70,9 +72,9 @@ function build_tools() {
   };
   Object.keys(actions).forEach((action) => {
     const group = make("div", "group");
-    group.append(make("span", "group-label", action));
+    group.append(make("span", "group-label", title_case(action)));
     Object.keys(scopes).forEach((scope) => {
-      const button = make("button", "tool", scope);
+      const button = make("button", "tool", title_case(scope));
       button.onclick = () => {
         actions[action](scopes[scope]());
         save(progress_key(), entries);
@@ -83,7 +85,7 @@ function build_tools() {
     tools.append(group);
   });
 
-  const auto = make("button", "tool toggle", "auto-check");
+  const auto = make("button", "tool toggle", "Auto-check");
   auto.setAttribute("aria-pressed", auto_check);
   auto.onclick = () => {
     auto_check = !auto_check;
@@ -91,7 +93,7 @@ function build_tools() {
     save("xw_auto_check", auto_check);
     render();
   };
-  const clear = make("button", "tool", "clear");
+  const clear = make("button", "tool", "Clear");
   clear.onclick = () => {
     if (!confirm("Clear all your answers for this puzzle?")) return;
     entries = puzzle.cells.map(() => "");
@@ -133,10 +135,41 @@ function build_puzzle() {
       clue_els[dir].push(item);
     });
   });
+  link_refs();
+  fit_grid();
+}
+
+function link_refs() {
+  const index_of = { across: new Map(), down: new Map() };
+  ["across", "down"].forEach((dir) => puzzle[dir].forEach((clue, index) => index_of[dir].set(clue.number, index)));
+  const collect = (text) => {
+    const found = [];
+    const add = (numbers, word) => {
+      const dir = word[0].toLowerCase() === "a" ? "across" : "down";
+      numbers.forEach((n) => {
+        const index = index_of[dir].get(Number(n));
+        if (index !== undefined) found.push({ dir, index });
+      });
+    };
+    for (const m of text.matchAll(/\b(\d{1,2}(?:\s*(?:,|and|&)\s*\d{1,2})*)\s?(across|down|ac|dn)\b/gi)) add(m[1].match(/\d+/g), m[2]);
+    for (const m of text.matchAll(/\b(\d{1,2})([ad])\b/gi)) add([m[1]], m[2]);
+    return found;
+  };
+  ["across", "down"].forEach((dir) => puzzle[dir].forEach((clue) => (clue.refs = collect(clue.text))));
+}
+
+function fit_grid() {
+  if (!puzzle) return;
+  const wrap = $("grid-wrap");
+  const size = Math.min(wrap.clientWidth, (wrap.clientHeight * puzzle.width) / puzzle.height);
+  $("grid").style.width = `${Math.max(0, Math.floor(size) - 2)}px`;
 }
 
 function render() {
   const word = current_clue().cells;
+  const refs = current_clue().refs;
+  const ref_cells = new Set(refs.flatMap((r) => puzzle[r.dir][r.index].cells));
+  const ref_keys = refs.map((r) => `${r.dir}${r.index}`);
   const active = { across: clue_of[cursor].across, down: clue_of[cursor].down };
   cell_els.forEach((cell, i) => {
     if (puzzle.cells[i] === null) return;
@@ -144,12 +177,14 @@ function render() {
     const bad = wrong.has(i) || (auto_check && entries[i] && entries[i] !== puzzle.cells[i]);
     cell.classList.toggle("active", i === cursor);
     cell.classList.toggle("in-word", i !== cursor && word.includes(i));
+    cell.classList.toggle("ref", ref_cells.has(i));
     cell.classList.toggle("wrong", Boolean(bad));
   });
   ["across", "down"].forEach((dir) =>
     clue_els[dir].forEach((item, index) => {
       item.classList.toggle("active", dir === direction && index === active[dir]);
       item.classList.toggle("cross", dir !== direction && index === active[dir]);
+      item.classList.toggle("ref", ref_keys.includes(`${dir}${index}`));
     })
   );
   const clue = current_clue();
@@ -170,11 +205,20 @@ function click_cell(i) {
   render();
 }
 
-function select_clue(dir, index) {
+function go_to_clue(dir, index) {
   const list = puzzle[dir];
   const clue = list[(index + list.length) % list.length];
   direction = dir;
   cursor = clue.cells.find((i) => !entries[i]) ?? clue.cells[0];
+}
+
+function go_to_next_clue(dir, index) {
+  if (index >= puzzle[dir].length) go_to_clue(other[dir], 0);
+  else go_to_clue(dir, index);
+}
+
+function select_clue(dir, index) {
+  go_to_clue(dir, index);
   $("keys").focus();
   render();
 }
@@ -204,7 +248,14 @@ function move_arrow(dr, dc, dir) {
 function type_letter(letter) {
   entries[cursor] = letter;
   wrong.delete(cursor);
-  step_in_word(1);
+  const cells = current_clue().cells;
+  const from = cells.indexOf(cursor);
+  const next_empty = cells.slice(from + 1).find((i) => !entries[i]);
+  const any_empty = cells.find((i) => !entries[i]);
+  if (next_empty !== undefined) cursor = next_empty;
+  else if (any_empty !== undefined) cursor = any_empty;
+  else if (from < cells.length - 1) cursor = cells[from + 1];
+  else go_to_next_clue(direction, clue_of[cursor][direction] + 1);
 }
 
 function backspace() {
@@ -248,8 +299,8 @@ async function open_puzzle(key) {
   build_tabs();
   $("status").textContent = "Loading…";
   try {
-    const response = await fetch(puzzles[key]);
-    if (!response.ok) throw new Error(`Could not load ${puzzles[key]} (${response.status}).`);
+    const response = await fetch(puzzles[key].file);
+    if (!response.ok) throw new Error(`Could not load ${puzzles[key].file} (${response.status}).`);
     puzzle = parse_puz(await response.arrayBuffer());
   } catch (error) {
     puzzle = null;
@@ -263,13 +314,13 @@ async function open_puzzle(key) {
   direction = "across";
   build_puzzle();
   build_tools();
-  cursor = fillable()[0];
-  if (!has_clue(cursor, direction)) direction = "down";
+  go_to_clue("across", 0);
   render();
 }
 
 $("theme").onclick = () => set_theme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
 $("keys").addEventListener("input", on_input);
+new ResizeObserver(fit_grid).observe($("grid-wrap"));
 document.addEventListener("keydown", on_key);
 set_theme(load("xw_theme", "dark"));
 const last = load("xw_last_puzzle", null);

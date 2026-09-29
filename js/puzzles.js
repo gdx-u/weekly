@@ -1,5 +1,5 @@
 export const puzzles = {
-  cryptic: "puzzles/cryptic.puz",
-  quick: "puzzles/quick.puz",
-  gk: "puzzles/gk.puz",
+  quick: { label: "Quick", file: "puzzles/quick.puz" },
+  cryptic: { label: "Cryptic", file: "puzzles/cryptic.puz" },
+  gk: { label: "General Knowledge", file: "puzzles/gk.puz" },
 };
